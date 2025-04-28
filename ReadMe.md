@@ -12,6 +12,7 @@ Score tracking system (1 point per wall hit)
 Game over detection when ball misses the paddle
 Visual feedback on collisions
 Restart functionality
+Mouse-controlled view rotation
 
 ## Controls
 
@@ -20,6 +21,7 @@ S: Move paddle right
 A: Move paddle forward
 D: Move paddle backward
 R: Restart game (after game over)
+Left-click + drag: Rotate view
 
 ## Requirements
 

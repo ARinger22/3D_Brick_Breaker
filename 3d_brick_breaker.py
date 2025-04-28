@@ -5,7 +5,7 @@ from OpenGL.GL import *
 from OpenGL.GLU import * 
 from OpenGL.GLUT import * 
 import random 
- 
+
 SCRW, SCRH = 1740, 980 
 FPS, BOX_W, SPHERE_R = 60, 20, 0.5 
 scr_w, scr_h = SCRW, SCRH 
@@ -17,15 +17,22 @@ hit, hit_dir = 0.0, 0
 game_over = False
 score = 0
 
+# View rotation variables
+mouse_x, mouse_y = 0, 0
+rotate_x, rotate_y = 15, 0
+is_rotating = False
+last_x, last_y = 0, 0
+
 # Plane position and size 
 plane_x, plane_z = 0.0, 0.0 
 plane_w, plane_h = 4.0, 2.0  # width and height of the plane 
 plane_y = -BOX_W / 2  # fixed y-position (bottom surface) 
 
 def init_work(): 
-    global ang_d, dx, dy, dz, game_over, score
+    global ang_d, dx, dy, dz, game_over, score, rotate_x, rotate_y
     game_over = False
     score = 0
+    rotate_x, rotate_y = 15, 0  # Reset view rotation
     ang_d = 360.0 / (FPS * 30) 
     base_speed = (float(BOX_W) / float(FPS)) * 0.5 
     angle_xy = random.uniform(0, 2 * math.pi) 
@@ -104,9 +111,9 @@ def draw_grid(size, face='bottom'):
  
 def draw_plane(): 
     glPushMatrix() 
-    glTranslatef(plane_x, plane_y + 0.01, plane_z) 
+    glTranslatef(plane_x, plane_y + 0.01, plane_z)  # small lift so it doesn't blend with floor 
     glScalef(plane_w, 0.1, plane_h) 
-    glColor3f(1.0, 0.0, 0.0) 
+    glColor3f(1.0, 0.0, 0.0)  # red plane 
     glutSolidCube(1.0) 
     glPopMatrix() 
 
@@ -148,8 +155,12 @@ def draw_func():
     glLightfv(GL_LIGHT0, GL_SPECULAR, light0spe) 
     glLightfv(GL_LIGHT0, GL_AMBIENT, light0amb) 
     glLoadIdentity() 
+    
+    # Set camera position with rotation
     r = (BOX_W / 2) + 15 
-    gluLookAt(r, r / 5, 0, 0, 0, 0, 0, 1, 0) 
+    glTranslatef(0, 0, -r)  # Move back to initial position
+    glRotatef(rotate_x, 1, 0, 0)  # Rotate around X axis
+    glRotatef(rotate_y, 0, 1, 0)  # Rotate around Y axis
  
     glScalef(1.0, 1.0, 1.0) 
     glDisable(GL_LIGHT0) 
@@ -166,7 +177,8 @@ def draw_func():
     if hit > 0.0: 
         glColor3f(0.0, hit, hit) 
         draw_circle(cx, cy, cz, 0.1 + 2.0 - 2.0 * hit, hit_dir) 
-
+ 
+    # Draw the plane (paddle) 
     draw_plane() 
  
     glEnable(GL_LIGHTING) 
@@ -189,6 +201,8 @@ def draw_func():
     gluSphere(quadric, radius, slices, stacks) 
  
     glPopMatrix() 
+    
+    # Draw score
     draw_text(20, scr_h - 30, f"Score: {score}")
     
     # Draw game over message if needed
@@ -259,29 +273,70 @@ def keyboard_func(key, x, y):
     
     move_step = 0.5 
  
-    if key == b'w': 
+    if key == b'a': 
         plane_x -= move_step 
-    elif key == b's': 
-        plane_x += move_step 
-    elif key == b'a': 
-        plane_z += move_step 
     elif key == b'd': 
+        plane_x += move_step 
+    elif key == b's': 
+        plane_z += move_step 
+    elif key == b'w': 
         plane_z -= move_step 
  
     # Keep plane inside the box 
     half_w = BOX_W/2 
     plane_x = max(-half_w + plane_w/2, min(half_w - plane_w/2, plane_x)) 
     plane_z = max(-half_w + plane_h/2, min(half_w - plane_h/2, plane_z)) 
+
+def mouse_motion(x, y):
+    global rotate_x, rotate_y, last_x, last_y, is_rotating
+    
+    if is_rotating:
+        dx = x - last_x
+        dy = y - last_y
+        
+        rotate_y += dx * 0.5
+        rotate_x += dy * 0.5
+        
+        # Clamp vertical rotation to prevent flipping
+        rotate_x = max(-90, min(90, rotate_x))
+        
+    last_x, last_y = x, y
+    glutPostRedisplay()
+
+def mouse_button(button, state, x, y):
+    global is_rotating, last_x, last_y
+    
+    if button == GLUT_LEFT_BUTTON:
+        if state == GLUT_DOWN:
+            is_rotating = True
+            last_x, last_y = x, y
+        else:
+            is_rotating = False
+
+def reshape(width, height):
+    global scr_w, scr_h
+    scr_w, scr_h = width, height
+    glViewport(0, 0, width, height)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(75.0, float(width) / float(height), 0.1, 100.0)
+    glMatrixMode(GL_MODELVIEW)
  
 def main(): 
     glutInit(sys.argv) 
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA | GLUT_DEPTH) 
     glutInitWindowSize(SCRW, SCRH) 
-    glutCreateWindow(b"3D Brick Breaker Ball Game - PyOpenGL") 
+    glutCreateWindow(b"3D Brick Breaker Style Ball Game with Paddle - PyOpenGL") 
     glMatrixMode(GL_PROJECTION) 
     gluPerspective(75.0, float(SCRW) / float(SCRH), 0.1, 100.0) 
     glMatrixMode(GL_MODELVIEW) 
     glEnable(GL_DEPTH_TEST) 
+    
+    # Register new callbacks
+    glutMotionFunc(mouse_motion)
+    glutMouseFunc(mouse_button)
+    glutReshapeFunc(reshape)
+    
     init_work() 
     glutDisplayFunc(draw_func) 
     glutTimerFunc(int(1000 / FPS), on_timer, 0) 
