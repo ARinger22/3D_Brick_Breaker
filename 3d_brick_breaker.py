@@ -312,15 +312,6 @@ def mouse_button(button, state, x, y):
             last_x, last_y = x, y
         else:
             is_rotating = False
-
-def reshape(width, height):
-    global scr_w, scr_h
-    scr_w, scr_h = width, height
-    glViewport(0, 0, width, height)
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-    gluPerspective(75.0, float(width) / float(height), 0.1, 100.0)
-    glMatrixMode(GL_MODELVIEW)
  
 def main(): 
     glutInit(sys.argv) 
@@ -335,7 +326,6 @@ def main():
     # Register new callbacks
     glutMotionFunc(mouse_motion)
     glutMouseFunc(mouse_button)
-    glutReshapeFunc(reshape)
     
     init_work() 
     glutDisplayFunc(draw_func) 
