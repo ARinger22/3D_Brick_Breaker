@@ -1,38 +1,42 @@
 import sys 
 import math 
-import time 
 from OpenGL.GL import * 
 from OpenGL.GLU import * 
 from OpenGL.GLUT import * 
 import random 
+import pygame
 
-SCRW, SCRH = 1740, 980 
-FPS, BOX_W, SPHERE_R = 60, 20, 0.5 
-scr_w, scr_h = SCRW, SCRH 
-ang, ang_d = 0.0, 0.0 
-bx, by, bz = 0.0, 0.0, 0.0 
-dx, dy, dz = 0.0, 0.0, 0.0 
-cx, cy, cz = 0.0, 0.0, 0.0 
-hit, hit_dir = 0.0, 0 
-game_over = False
-score = 0
+pygame.mixer.init()
+hit_sound = pygame.mixer.Sound('hit.mp3')
+game_over_sound = pygame.mixer.Sound('gameover.mp3')
 
-# View rotation variables
-mouse_x, mouse_y = 0, 0
-rotate_x, rotate_y = 15, 0
-is_rotating = False
-last_x, last_y = 0, 0
+SCRW, SCRH = 1740, 980  # Screen dimensions
+FPS, BOX_W, SPHERE_R = 60, 20, 0.5  # Game settings
+scr_w, scr_h = SCRW, SCRH  # Current window size (adjustable)
+ang, ang_d = 0.0, 0.0  # Angle variables (for animations)
+bx, by, bz = 0.0, 0.0, 0.0  # Ball position
+dx, dy, dz = 0.0, 0.0, 0.0  # Ball velocity
+cx, cy, cz = 0.0, 0.0, 0.0  # Collision point (for hit effects)
+hit, hit_dir = 0.0, 0  # Hit animation control
+game_over = False  # Game state
+score = 0  # Player score
 
-# Plane position and size 
-plane_x, plane_z = 0.0, 0.0 
-plane_w, plane_h = 4.0, 2.0  # width and height of the plane 
-plane_y = -BOX_W / 2  # fixed y-position (bottom surface) 
+# Mouse rotation controls
+mouse_x, mouse_y = 0, 0  # Current mouse position
+rotate_x, rotate_y = 0, 0  # Camera rotation angles
+is_rotating = False  # Is mouse dragging active?
+last_x, last_y = 0, 0  # Previous mouse position
+
+# Paddle (plane) settings
+plane_x, plane_z = 0.0, 0.0  # Paddle position
+plane_w, plane_h = 4.0, 2.0  # Paddle width & height
+plane_y = -BOX_W / 2  # Paddle sits at the bottom
 
 def init_work(): 
     global ang_d, dx, dy, dz, game_over, score, rotate_x, rotate_y
     game_over = False
     score = 0
-    rotate_x, rotate_y = 15, 0  # Reset view rotation
+    rotate_x, rotate_y = 0, 0  # Reset view rotation
     ang_d = 360.0 / (FPS * 30) 
     base_speed = (float(BOX_W) / float(FPS)) * 0.5 
     angle_xy = random.uniform(0, 2 * math.pi) 
@@ -43,29 +47,12 @@ def init_work():
     dz = base_speed * math.sin(angle_z) 
  
 def draw_circle(bx, by, bz, r, hit_dir): 
-    glPushMatrix() 
-    glTranslatef(bx, by, bz) 
- 
-    if hit_dir == 0: 
-        glRotatef(90.0, 0.0, 1.0, 0.0) 
-    elif hit_dir == 1: 
-        glRotatef(90.0, 1.0, 0.0, 0.0) 
- 
-    y = -r 
-    d = float(r) / 5.0 
-    while y <= r: 
-        x = math.sqrt(r * r - (y * y)) 
-        glBegin(GL_LINES) 
-        glVertex3f(-x, y, 0.0) 
-        glVertex3f(+x, y, 0.0) 
-        glEnd() 
-        glBegin(GL_LINES) 
-        glVertex3f(y, -x, 0.0) 
-        glVertex3f(y, +x, 0.0) 
-        glEnd() 
-        y += d 
- 
-    glPopMatrix() 
+    glPushMatrix()
+    glTranslatef(bx, by, bz)
+    quad = gluNewQuadric()
+    gluSphere(quad, r, 20, 20)
+    gluDeleteQuadric(quad)
+    glPopMatrix()
  
 def draw_all_surfaces_with_grid(size): 
     faces = ['bottom', 'top', 'front', 'back', 'left', 'right'] 
@@ -234,22 +221,26 @@ def on_timer(value):
         hit, hit_dir = 1.0, 0 
         cx, cy, cz = bx + (SPHERE_R * (-1 if (bx - SPHERE_R <= -w) else 1)), by, bz
         score += 1  # Increment score for side wall hits
+        hit_sound.play()
     if by - SPHERE_R <= -w or by + SPHERE_R >= w: 
         # Check if it's the bottom surface (game over condition)
         if by - SPHERE_R <= -w:
             # Check if paddle missed the ball
             if not (plane_x - plane_w/2 <= bx <= plane_x + plane_w/2) or not (plane_z - plane_h/2 <= bz <= plane_z + plane_h/2):
                 game_over = True
+                game_over_sound.play()
         dy *= -1 
         hit, hit_dir = 1.0, 1 
         cx, cy, cz = bx, by + (SPHERE_R * (-1 if (by - SPHERE_R <= -w) else 1)), bz
         if by + SPHERE_R >= w:  # Only increment score for top wall hits
             score += 1
+            hit_sound.play()
     if bz - SPHERE_R <= -w or bz + SPHERE_R >= w: 
         dz *= -1 
         hit, hit_dir = 1.0, 2 
         cx, cy, cz = bx, by, bz + (SPHERE_R * (-1 if (bz - SPHERE_R <= -w) else 1))
         score += 1  # Increment score for front/back wall hits
+        hit_sound.play()
  
     # Check collision with the plane (only when ball going down) 
     if dy < 0 and (abs(by - plane_y) <= SPHERE_R + 0.1): 
@@ -262,9 +253,11 @@ def on_timer(value):
     glutTimerFunc(int(1000 / FPS), on_timer, 0) 
  
 def keyboard_func(key, x, y): 
-    global plane_x, plane_z, game_over, score
+    global plane_x, plane_z, game_over, score, bx, by, bz, dx, dy, dz, hit, hit_dir
     
     if game_over and key == b'r':
+        bx, by, bz = 0.0, 0.0, 0.0 
+        dx, dy, dz = 0.0, 0.0, 0.0 
         init_work()
         return
     
